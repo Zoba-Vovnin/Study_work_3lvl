@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" rel="stylesheet"/>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet-geometryutil"></script>
+    <script src="https://unpkg.com/terraformer@1.0.8/terraformer.js"></script>
+    <script src="https://unpkg.com/terraformer-wkt-parser@1.2.1/terraformer-wkt-parser.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/togeojson@0.16.0/to-geojson.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/kml-geojson@1.0.0/kml-geojson.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+	body {
+	    font-family: 'Oswald', sans-serif;
+	    line-height: 1.6;
+	    color: #333;
+	    background: #d3dfed;
+	    min-height: 100vh;
+	    margin: 0;
+	    padding: 0;
+	}
+        .header {
+            background: #2f547d;
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+	    justify-content: center;
+        }
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 20px;
+        }
+        .logo {
+	    font-family: 'Oswald', sans-serif;
+	    letter-spacing: 2px;
+	    color: #fbfcf7;
+            font-size: 1.5rem;
+            font-weight: bold;
+	    text-align: center;
+	    margin: 0 auto;
+        }
+	.container {
+	    max-width: 1200px;
+	    padding: 20px;
+ 	    margin: 2rem auto;
+	    text-align: center;
+	}
+        h1 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #2c3e50;
+        }
+        .map-container {
+            position: relative;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        #map {
+            width: 100%;
+            height: 500px;
+        }
+        .map-control {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+        .map-control h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .control-option {
+            margin: 5px 0;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 3px;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        .control-option:hover {
+            background: #f0f0f0;
+        }
+        .control-option.active {
+            background: #3498db;
+            color: white;
+        }
+        .leaflet-draw-toolbar a {
+            background-image: url('https://unpkg.com/leaflet-draw@1.0.4/dist/images/spritesheet.png') !important;
+        }
+        footer {
+            background: #062140;
+            color: #ecf0f1;
+            text-align: center;
+            padding: 1.5rem 0;
+            margin-top: 2rem;
+        }
+        footer p {
+            margin: 0;
+        }
+        #info-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #info-panel h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        #info-panel ul {
+            list-style: none;
+            padding: 0;
+        }
+        #info-panel li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #info-panel li:last-child {
+            border-bottom: none;
+        }
+        .export-buttons {
+            display: flex;
+	    justify-content: center;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .export-btn {
+            background: #0c2d52;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .export-btn:hover {
+            background: #0c2d52;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .btn {
+            background-color: #0c2d52;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #3498db;
+        }
+        .leaflet-object-label {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .edit-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 5px;
+            color: #3498db;
+            transition: color 0.2s;
+        }
+        .edit-btn:hover {
+            color: #2c3e50;
+        }
+        .coordinates-display {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 14px;
+        }
+        .ruler-control {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+        }
+        .ruler-btn {
+            background: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .ruler-btn:hover {
+            background: #f0f0f0;
+        }
+        .ruler-btn.active {
+            background: #3498db;
+            color: white;
+        }
+        .ruler-result {
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 14px;
+            display: none;
+        }
+        .distance-label {
+            position: absolute;
+            background: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+	.layer-selector {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            padding: 5px;
+        }
+        
+        .layer-selector select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            outline: none;
+            width: 200px;
+        }
+        
+        .layer-selector select:hover {
+            border-color: #3498db;
+        }
+	.map-control {
+    	    background: white;
+    	    padding: 10px;
+	    border-radius: 5px;
+    	    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    	    max-width: 200px;
+	}
+
+	.map-control select {
+    	    width: 100%;
+    	    padding: 8px;
+    	    border: 1px solid #ddd;
+    	    border-radius: 4px;
+    	    background-color: white;
+    	    font-size: 14px;
+    	    cursor: pointer;
+	}
+
+	.map-control select:focus {
+    	    outline: none;
+    	    border-color: #3498db;
+	}
+
+	.map-control h3 {
+    	    margin: 0 0 8px 0;
+    	    font-size: 14px;
+    	    color: #333;
+    	    border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+    	    }
+    </style>
+    <header class="header">
+    	<div class="header-container">
+        	<div class="logo">Dot Point</div>
+    	</div>
+    </header>
+</head>
+<body>
+
+<main class="container">
+    <h1>Карта с инструментами отрисовки</h1>
+    <section id="interactive-mape">
+    	<div class="map-container">
+        	<div id="map"></div>
+        	<div class="coordinates-display" id="coordinates">Координаты: не указаны</div>
+        	<div class="ruler-control">
+            	<button class="ruler-btn" id="ruler-btn" title="Измерить расстояние">📏 Линейка</button>
+            	<div class="ruler-result" id="ruler-result"></div>
+        	</div>
+    	</div>
+    </section>
+    <section id="cord-Point">
+    	<button class="export-btn" id="open-coord-form">Добавить точку по координатам</button>
+    	<div id="coord-form" style="display:none; margin-top: 1rem;">
+        	<div class="form-group">
+            		<label for="lat-input">Широта:</label>
+            		<input id="lat-input" placeholder="например, 55.75" type="text"/>
+        	</div>
+        	<div class="form-group">
+            		<label for="lng-input">Долгота:</label>
+            		<input id="lng-input" placeholder="например, 37.61" type="text"/>
+        	</div>
+        	<button class="btn" id="add-point-btn">Поставить точку</button>
+    	</div>
+    </section>
+    <section id="info-panel">
+        <h3>Информация о фигурах</h3>
+        <p>Нарисуйте объекты на карте</p>
+    </section>
+    <section class="export-buttons">
+        <button class="export-btn" id="export-geojson">Экспорт в GeoJSON</button>
+        <button class="export-btn" id="export-kml">Экспорт в KML</button>
+        <button class="export-btn" id="export-gpx">Экспорт в GPX</button>
+        <button class="export-btn" id="export-wkt">Экспорт в WKT</button>
+        <button class="export-btn" id="export-csv">Экспорт в CSV</button>
+    </setcion>
+</main>
+<section aria-hidden="true" class="modal" id="attribute-dialog">
+    <div class="modal-content">
+        <span aria-label="Закрыть" class="close">×</span>
+        <h3>Атрибуты объекта</h3>
+        <form id="attribute-form">
+            <div class="form-group">
+                <label for="object-name">Название:</label>
+                <input id="object-name" required type="text"/>
+            </div>
+            <div class="form-group">
+                <label for="object-description">Описание:</label>
+                <textarea id="object-description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="object-color">Цвет:</label>
+                <input id="object-color" type="color" value="#3498db"/>
+            </div>
+            <button class="btn" type="submit">Сохранить</button>
+        </form>
+    </div>
+</section>
+<script>
+
+    const map = L.map('map').setView([55.354167, 86.089722], 10);
+    const baseLayers = {
+        "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }),
+        "Mapbox Streets": L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFpYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+            attribution: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a>'
+        }),
+        "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© <a href="https://www.esri.com/">Esri</a>'
+        }),
+        "Yandex Maps": L.tileLayer('https://core-renderer-tiles.maps.yandex.net/tiles?l=map&v=21.06.09-0-b210519100533&x={x}&y={y}&z={z}&scale=1&lang=ru_RU', {
+            attribution: '© <a href="https://yandex.ru/maps/">Яндекс.Карты</a>'
+        }),
+        "Yandex Satellite": L.tileLayer('https://core-sat.maps.yandex.net/tiles?l=sat&v=3.507.0&x={x}&y={y}&z={z}&scale=1&lang=ru_RU', {
+            attribution: '© <a href="https://yandex.ru/maps/">Яндекс.Карты</a>'
+        }),
+        "Google Maps": L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: '© <a href="https://www.google.com/maps">Google Maps</a>'
+        }),
+        "Google Satellite": L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            attribution: '© <a href="https://www.google.com/maps">Google Maps</a>'
+        })
+    };
+    
+    baseLayers["OpenStreetMap"].addTo(map);
+    
+    function createLayerSelector() {
+        const container = L.DomUtil.create('div', 'layer-selector');
+        const select = L.DomUtil.create('select', '', container);
+        for (const name in baseLayers) {
+            const option = L.DomUtil.create('option', '', select);
+            option.value = name;
+            option.textContent = name;
+            if (name === "OpenStreetMap") {
+                option.selected = true;
+            }
+        }
+
+        select.addEventListener('change', function() {
+            const selectedLayer = this.value;
+            for (const name in baseLayers) {
+                map.removeLayer(baseLayers[name]);
+            }
+            map.addLayer(baseLayers[selectedLayer]);
+        });
+        
+        return container;
+    }
+    const layerSelector = createLayerSelector();
+    map.getContainer().appendChild(layerSelector);
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        position: 'topleft',
+        draw: {
+            polygon: {
+                shapeOptions: {
+                    color: '#3498db',
+                    fillColor: '#3498db',
+                    fillOpacity: 0.3
+                },
+                allowIntersection: false,
+                showArea: true,
+                drawError: {
+                    color: '#e74c3c',
+                    message: 'Недопустимая форма полигона'
+                },
+                guidelineDistance: 20,
+                showLength: true,
+                metric: true,
+                feet: false,
+                nautic: false,
+                zIndexOffset: 2000
+            },
+            polyline: {
+                shapeOptions: {
+                    color: '#e74c3c',
+                    weight: 5
+                },
+                metric: true,
+                feet: false,
+                nautic: false,
+                zIndexOffset: 2000
+            },
+            circle: false,
+            rectangle: false,
+	    circlemarker: false,
+            marker: {
+                icon: new L.Icon.Default(),
+                zIndexOffset: 2000
+            }
+        },
+        edit: {
+            featureGroup: drawnItems,
+            edit: {
+                selectedPathOptions: {
+                    maintainColor: false
+                }
+            }
+        }
+    });
+    
+    map.addControl(drawControl);
+    
+    let currentLayer = null;
+    
+    const modal = document.getElementById('attribute-dialog');
+    const closeBtn = document.querySelector('.close');
+    const attributeForm = document.getElementById('attribute-form');
+    
+    closeBtn.onclick = function() {
+        modal.style.display = "none";
+        modal.setAttribute('aria-hidden', 'true');
+    };
+
+    window.onclick = function(event) {
+        if (event.target === modal) {
+            modal.style.display = "none";
+            modal.setAttribute('aria-hidden', 'true');
+        }
+    }
+    
+    attributeForm.onsubmit = function(e) {
+        e.preventDefault();
+        const name = document.getElementById('object-name').value;
+        const description = document.getElementById('object-description').value;
+        const color = document.getElementById('object-color').value;
+        
+        if (currentLayer) {
+            currentLayer.feature = currentLayer.feature || { 
+                type: 'Feature', 
+                properties: {}, 
+                geometry: {} 
+            };
+            
+            currentLayer.feature.properties = {
+                name: name,
+                description: description,
+                color: color
+            };
+            
+            updateLayerStyle(currentLayer, color);
+            addLabelToLayer(currentLayer, name);
+            updateInfoPanel();
+        }
+        
+        modal.style.display = "none";
+        modal.setAttribute('aria-hidden', 'true');
+        return false;
+    };
+    
+    function updateLayerStyle(layer, color) {
+        if (!layer || !color) return;
+        
+        try {
+            if (layer instanceof L.Polygon) {
+                layer.setStyle({
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.3
+                });
+            } else if (layer instanceof L.Polyline) {
+                layer.setStyle({
+                    color: color,
+                    weight: 5
+                });
+            }
+        } catch (e) {
+            console.error('Ошибка при обновлении стиля слоя:', e);
+        }
+    }
+    
+    function addLabelToLayer(layer, text) {
+        if (!layer) return;
+        
+        try {
+            if (layer.label) {
+                map.removeLayer(layer.label);
+                layer.label = null;
+            }
+            
+            if (text) {
+                const center = getLayerCenter(layer);
+                if (center) {
+                    layer.label = L.marker(center, {
+                        icon: L.divIcon({
+                            className: 'leaflet-object-label',
+                            html: text,
+                            iconSize: null
+                        }),
+                        zIndexOffset: 1000,
+                        interactive: false
+                    }).addTo(map);
+                }
+            }
+        } catch (e) {
+            console.error('Ошибка при добавлении метки:', e);
+        }
+    }
+    
+    function getLayerCenter(layer) {
+        if (!layer) return null;
+        
+        try {
+            if (layer instanceof L.Marker) {
+                return layer.getLatLng();
+            } else if (layer instanceof L.Polygon || layer instanceof L.Polyline) {
+                return layer.getBounds().getCenter();
+            }
+            return null;
+        } catch (e) {
+            console.error('Ошибка при получении центра слоя:', e);
+            return null;
+        }
+    }
+    
+    map.on(L.Draw.Event.CREATED, function(e) {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        currentLayer = layer;
+        
+        layer.feature = {
+            type: 'Feature',
+            properties: {},
+            geometry: layer.toGeoJSON().geometry
+        };
+        
+        document.getElementById('object-name').value = '';
+        document.getElementById('object-description').value = '';
+        document.getElementById('object-color').value = '#3498db';
+        
+        modal.style.display = "block";
+        modal.setAttribute('aria-hidden', 'false');
+        
+        updateInfoPanel();
+    });
+    
+    const coordinatesDisplay = document.getElementById('coordinates');
+    
+    map.on('mousemove', function(e) {
+        const lat = e.latlng.lat.toFixed(6);
+        const lng = e.latlng.lng.toFixed(6);
+        coordinatesDisplay.textContent = `Координаты: ${lat}, ${lng}`;
+    });
+    
+    map.on(L.Draw.Event.DRAWSTART, function(e) {
+        const layerType = e.layerType;
+        
+        if (layerType === 'marker') {
+            map.off('click');
+            
+            map.on('click', function(e) {
+                const marker = new L.Marker(e.latlng, {
+                    icon: new L.Icon.Default()
+                });
+                
+                drawnItems.addLayer(marker);
+                currentLayer = marker;
+                
+                marker.feature = {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: marker.toGeoJSON().geometry
+                };
+                
+                document.getElementById('object-name').value = '';
+                document.getElementById('object-description').value = '';
+                document.getElementById('object-color').value = '#3498db';
+                
+                modal.style.display = "block";
+                modal.setAttribute('aria-hidden', 'false');
+                
+                updateInfoPanel();
+                
+                map.off('click');
+            });
+        }
+    });
+    
+    const rulerBtn = document.getElementById('ruler-btn');
+    const rulerResult = document.getElementById('ruler-result');
+    let rulerActive = false;
+    let rulerPoints = [];
+    let rulerLine = null;
+    let rulerMarkers = [];
+    let distanceLabels = [];
+    
+    rulerBtn.addEventListener('click', function() {
+        rulerActive = !rulerActive;
+        
+        if (rulerActive) {
+            this.classList.add('active');
+            rulerResult.style.display = 'block';
+            rulerResult.textContent = 'Кликните на карте, чтобы начать измерение';
+            
+            clearRuler();
+            
+            map.on('click', onMapClickForRuler);
+            map.on('mousemove', onMapMoveForRuler);
+        } else {
+            this.classList.remove('active');
+            rulerResult.style.display = 'none';
+            
+            map.off('click', onMapClickForRuler);
+            map.off('mousemove', onMapMoveForRuler);
+            
+            clearRuler();
+        }
+    });
+    
+    function onMapClickForRuler(e) {
+        rulerPoints.push(e.latlng);
+        
+        const marker = L.marker(e.latlng, {
+            icon: L.divIcon({
+                className: 'leaflet-object-label',
+                html: `${rulerPoints.length}`,
+                iconSize: [20, 20]
+            })
+        }).addTo(map);
+        rulerMarkers.push(marker);
+        
+        updateRulerLine();
+        
+        updateRulerResult();
+    }
+    
+    function onMapMoveForRuler(e) {
+        if (rulerPoints.length > 0) {
+            const tempPoints = [...rulerPoints, e.latlng];
+            updateRulerLine(tempPoints);
+            
+            updateRulerResult(tempPoints);
+        }
+    }
+    
+    function updateRulerLine(points = rulerPoints) {
+        if (points.length < 1) return;
+        
+        if (rulerLine) {
+            map.removeLayer(rulerLine);
+        }
+        
+        clearDistanceLabels();
+        
+        rulerLine = L.polyline(points, {
+            color: '#3498db',
+            weight: 3,
+            dashArray: '5, 5'
+        }).addTo(map);
+        
+        if (points.length > 1) {
+            for (let i = 1; i < points.length; i++) {
+                const distance = points[i-1].distanceTo(points[i]);
+                const middlePoint = getMiddlePoint(points[i-1], points[i]);
+                
+                const label = L.marker(middlePoint, {
+                    icon: L.divIcon({
+                        className: 'distance-label',
+                        html: `${(distance/1000).toFixed(2)} км`,
+                        iconSize: null
+                    }),
+                    interactive: false
+                }).addTo(map);
+                
+                distanceLabels.push(label);
+            }
+        }
+    }
+    
+    function getMiddlePoint(latLng1, latLng2) {
+        return L.latLng(
+            (latLng1.lat + latLng2.lat) / 2,
+            (latLng1.lng + latLng2.lng) / 2
+        );
+    }
+    
+    function clearDistanceLabels() {
+        distanceLabels.forEach(label => map.removeLayer(label));
+        distanceLabels = [];
+    }
+    
+    function updateRulerResult(points = rulerPoints) {
+        if (points.length < 1) {
+            rulerResult.textContent = 'Кликните на карте, чтобы начать измерение';
+            return;
+        }
+        
+        let totalDistance = 0;
+        let segmentsInfo = [];
+        
+        for (let i = 1; i < points.length; i++) {
+            const distance = points[i-1].distanceTo(points[i]);
+            totalDistance += distance;
+            segmentsInfo.push(`Отрезок ${i}: ${(distance/1000).toFixed(3)} км`);
+        }
+        
+        if (points.length === 1) {
+            rulerResult.textContent = 'Кликните в следующую точку для измерения расстояния';
+        } else {
+            rulerResult.innerHTML = `
+                <strong>Общее расстояние:</strong> ${(totalDistance/1000).toFixed(3)} км<br>
+                ${segmentsInfo.join('<br>')}<br>
+                <small>Двойной клик - завершить измерение</small>
+            `;
+        }
+    }
+    
+    function clearRuler() {
+        if (rulerLine) {
+            map.removeLayer(rulerLine);
+            rulerLine = null;
+        }
+        
+        rulerMarkers.forEach(marker => map.removeLayer(marker));
+        rulerMarkers = [];
+        
+        clearDistanceLabels();
+        
+        rulerPoints = [];
+        
+        rulerResult.style.display = 'none';
+    }
+    
+    map.on('dblclick', function() {
+        if (rulerActive) {
+            rulerBtn.classList.remove('active');
+            rulerActive = false;
+            
+            map.off('click', onMapClickForRuler);
+            map.off('mousemove', onMapMoveForRuler);
+            
+            rulerResult.innerHTML = '<span style="color:#777">' + rulerResult.innerHTML + '</span>';
+        }
+    });
+    
+    function updateInfoPanel() {
+        const infoPanel = document.getElementById('info-panel');
+        if (!infoPanel) return;
+        
+        const layers = drawnItems.getLayers();
+        let html = '<h3>Информация о фигурах</h3>';
+        
+        if (layers.length === 0) {
+            html += '<p>Нарисуйте объекты на карте</p>';
+        } else {
+            html += '<ul>';
+            
+            layers.forEach((layer, index) => {
+                try {
+                    let info = '';
+                    const props = layer.feature?.properties || {};
+                    const name = props.name || `Объект ${index+1}`;
+                    
+                    if (layer instanceof L.Marker) {
+                        const latLng = layer.getLatLng();
+                        const lat = latLng.lat.toFixed(6);
+                        const lng = latLng.lng.toFixed(6);
+                        info = `Точка: ${name} (${lat}, ${lng})`;
+                    } else if (layer instanceof L.Polyline) {
+                        const length = L.GeometryUtil.length(layer) / 1000;
+                        info = `Линия: ${name} (${length.toFixed(2)} км)`;
+                    } else if (layer instanceof L.Polygon) {
+                        const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 1000000;
+                        info = `Полигон: ${name} (${area.toFixed(2)} км²)`;
+                    }
+                    
+                    info += ` <button class="edit-btn" data-id="${index}" aria-label="Редактировать объект">✏️</button>`;
+                    html += `<li>${info}</li>`;
+                } catch (e) {
+                    console.error('Ошибка при обработке слоя:', e);
+                    html += `<li>Ошибка при обработке объекта ${index+1}</li>`;
+                }
+            });
+            
+            html += '</ul>';
+        }
+        
+        infoPanel.innerHTML = html;
+        
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-id'));
+                const layer = drawnItems.getLayers()[index];
+                if (layer) {
+                    editLayerAttributes(layer);
+                }
+            });
+        });
+    }
+    
+    function editLayerAttributes(layer) {
+        if (!layer) return;
+        
+        currentLayer = layer;
+        const props = layer.feature?.properties || {};
+        
+        document.getElementById('object-name').value = props.name || '';
+        document.getElementById('object-description').value = props.description || '';
+        document.getElementById('object-color').value = props.color || '#3498db';
+        
+        modal.style.display = "block";
+        modal.setAttribute('aria-hidden', 'false');
+    }
+    
+    map.on(L.Draw.Event.EDITED, function(e) {
+        e.layers.eachLayer(layer => {
+            if (layer.feature && layer.feature.properties.name) {
+                addLabelToLayer(layer, layer.feature.properties.name);
+            }
+        });
+        updateInfoPanel();
+    });
+
+    map.on(L.Draw.Event.DELETED, function(e) {
+        e.layers.eachLayer(layer => {
+            if (layer.label) {
+                map.removeLayer(layer.label);
+            }
+        });
+        updateInfoPanel();
+    });
+    
+    function exportData(format) {
+        try {
+            const geoJsonData = {
+                type: 'FeatureCollection',
+                features: []
+            };
+            
+            drawnItems.eachLayer(layer => {
+                if (layer.feature) {
+                    const feature = {
+                        type: 'Feature',
+                        properties: {...layer.feature.properties},
+                        geometry: layer.toGeoJSON().geometry
+                    };
+                    geoJsonData.features.push(feature);
+                }
+            });
+            
+            let data, mimeType, extension;
+            
+            switch(format) {
+                case 'geojson':
+                    data = JSON.stringify(geoJsonData, null, 2);
+                    mimeType = 'application/json';
+                    extension = 'geojson';
+                    break;
+                case 'kml':
+                    data = convertToKML(geoJsonData);
+                    mimeType = 'application/vnd.google-earth.kml+xml';
+                    extension = 'kml';
+                    break;
+                case 'gpx':
+                    data = convertToGPX(geoJsonData);
+                    mimeType = 'application/gpx+xml';
+                    extension = 'gpx';
+                    break;
+                case 'wkt':
+                    data = convertToWKT(geoJsonData);
+                    mimeType = 'text/plain';
+                    extension = 'wkt';
+                    break;
+                case 'csv':
+                    data = convertToCSV(geoJsonData);
+                    mimeType = 'text/csv';
+                    extension = 'csv';
+                    break;
+                default:
+                    throw new Error('Неизвестный формат экспорта');
+            }
+            
+            const blob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `map_data.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error(`Ошибка при экспорте ${format}:`, e);
+            alert(`Произошла ошибка при экспорте данных в формате ${format}`);
+        }
+    }
+
+    function convertToKML(geojson) {
+        if (!geojson || !geojson.features) {
+            return '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document></Document></kml>';
+        }
+        
+        let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>Map Data</name>`;
+        
+        geojson.features.forEach(feature => {
+            if (!feature.geometry) return;
+            
+            kml += '\n        <Placemark>';
+            
+            if (feature.properties) {
+                if (feature.properties.name) {
+                    kml += `\n            <name>${escapeXml(feature.properties.name)}</name>`;
+                }
+                if (feature.properties.description) {
+                    kml += `\n            <description>${escapeXml(feature.properties.description)}</description>`;
+                }
+                
+                if (feature.properties.color) {
+                    kml += `\n            <Style>
+                <LineStyle>
+                    <color>${hexToKmlColor(feature.properties.color)}</color>
+                    <width>2</width>
+                </LineStyle>
+                <PolyStyle>
+                    <color>${hexToKmlColor(feature.properties.color, 0.3)}</color>
+                </PolyStyle>
+            </Style>`;
+                }
+            }
+            
+            kml += '\n            <' + getGeometryType(feature.geometry.type) + '>';
+            
+            if (feature.geometry.type === 'Point') {
+                if (feature.geometry.coordinates && feature.geometry.coordinates.length >= 2) {
+                    kml += `\n                <coordinates>${feature.geometry.coordinates[0]},${feature.geometry.coordinates[1]}</coordinates>`;
+                }
+            } else if (feature.geometry.type === 'LineString') {
+                if (feature.geometry.coordinates) {
+                    kml += '\n                <coordinates>' + 
+                        feature.geometry.coordinates.map(coord => coord.join(',')).join(' ') + 
+                        '</coordinates>';
+                }
+            } else if (feature.geometry.type === 'Polygon') {
+                if (feature.geometry.coordinates && feature.geometry.coordinates[0]) {
+                    kml += '\n                <coordinates>' + 
+                        feature.geometry.coordinates[0].map(coord => coord.join(',')).join(' ') + 
+                        '</coordinates>';
+                }
+            }
+            
+            kml += '\n            </' + getGeometryType(feature.geometry.type) + '>';
+            kml += '\n        </Placemark>';
+        });
+        
+        kml += '\n    </Document>\n</kml>';
+        return kml;
+    }
+
+    function convertToGPX(geojson) {
+        if (!geojson || !geojson.features) {
+            return '<?xml version="1.0" encoding="UTF-8"?><gpx xmlns="http://www.topografix.com/GPX/1/1"></gpx>';
+        }
+        
+        let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="Dot Point">
+    <metadata>
+        <name>Map Data</name>
+        <time>${new Date().toISOString()}</time>
+    </metadata>`;
+        
+        geojson.features.forEach(feature => {
+            if (!feature.geometry) return;
+            
+            const props = feature.properties || {};
+            
+            if (feature.geometry.type === 'Point') {
+                if (feature.geometry.coordinates && feature.geometry.coordinates.length >= 2) {
+                    gpx += `\n    <wpt lat="${feature.geometry.coordinates[1]}" lon="${feature.geometry.coordinates[0]}">`;
+                    if (props.name) gpx += `\n        <name>${escapeXml(props.name)}</name>`;
+                    if (props.description) gpx += `\n        <desc>${escapeXml(props.description)}</desc>`;
+                    gpx += '\n    </wpt>';
+                }
+            } else if (feature.geometry.type === 'LineString') {
+                gpx += '\n    <trk>';
+                if (props.name) gpx += `\n        <name>${escapeXml(props.name)}</name>`;
+                if (props.description) gpx += `\n        <desc>${escapeXml(props.description)}</desc>`;
+                gpx += '\n        <trkseg>';
+                
+                feature.geometry.coordinates.forEach(coord => {
+                    gpx += `\n            <trkpt lat="${coord[1]}" lon="${coord[0]}"></trkpt>`;
+                });
+                
+                gpx += '\n        </trkseg>';
+                gpx += '\n    </trk>';
+            }
+        });
+        
+        gpx += '\n</gpx>';
+        return gpx;
+    }
+
+    function convertToWKT(geojson) {
+        if (!geojson || !geojson.features) return '';
+        
+        let wktData = '';
+        
+        geojson.features.forEach(feature => {
+            if (!feature.geometry) return;
+            
+            const props = feature.properties || {};
+            let wkt = '';
+            
+            switch(feature.geometry.type) {
+                case 'Point':
+                    wkt = `POINT(${feature.geometry.coordinates[0]} ${feature.geometry.coordinates[1]})`;
+                    break;
+                case 'LineString':
+                    const lineCoords = feature.geometry.coordinates.map(coord => `${coord[0]} ${coord[1]}`).join(', ');
+                    wkt = `LINESTRING(${lineCoords})`;
+                    break;
+                case 'Polygon':
+                    const polyCoords = feature.geometry.coordinates[0].map(coord => `${coord[0]} ${coord[1]}`).join(', ');
+                    wkt = `POLYGON((${polyCoords}))`;
+                    break;
+                default:
+                    return;
+            }
+            
+            if (props.name) {
+                wktData += `${props.name}\t${wkt}\n`;
+            } else {
+                wktData += `${wkt}\n`;
+            }
+        });
+        
+        return wktData;
+    }
+
+    function convertToCSV(geojson) {
+        if (!geojson || !geojson.features) return '';
+        
+        let csvData = 'Тип,Название,Описание,Координаты\n';
+        
+        geojson.features.forEach(feature => {
+            if (!feature.geometry) return;
+            
+            const props = feature.properties || {};
+            let coords = '';
+            
+            switch(feature.geometry.type) {
+                case 'Point':
+                    coords = `${feature.geometry.coordinates[1]}, ${feature.geometry.coordinates[0]}`;
+                    break;
+                case 'LineString':
+                    coords = feature.geometry.coordinates.map(coord => `${coord[1]},${coord[0]}`).join('; ');
+                    break;
+                case 'Polygon':
+                    coords = feature.geometry.coordinates[0].map(coord => `${coord[1]},${coord[0]}`).join('; ');
+                    break;
+                default:
+                    return;
+            }
+            
+            csvData += `"${feature.geometry.type}","${props.name || ''}","${props.description || ''}","${coords}"\n`;
+        });
+        
+        return csvData;
+    }
+
+    function getGeometryType(type) {
+        switch(type) {
+            case 'Point': return 'Point';
+            case 'LineString': return 'LineString';
+            case 'Polygon': return 'Polygon';
+            default: return 'Point';
+        }
+    }
+    
+    function hexToKmlColor(hex, opacity = 1.0) {
+        try {
+            if (!hex || typeof hex !== 'string') return '7fffffff';
+            
+            hex = hex.replace('#', '');
+            
+            if (hex.length === 3) {
+                hex = hex.split('').map(c => c + c).join('');
+            }
+            
+            if (hex.length !== 6 || !/^[0-9a-fA-F]+$/.test(hex)) {
+                return '7fffffff';
+            }
+            
+            const r = hex.substr(0, 2);
+            const g = hex.substr(2, 2);
+            const b = hex.substr(4, 2);
+            const a = Math.round(opacity * 255).toString(16).padStart(2, '0');
+            
+            return a + b + g + r;
+        } catch (e) {
+            console.error('Ошибка при конвертации цвета:', e);
+            return '7fffffff';
+        }
+    }
+    
+    function escapeXml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe.toString()
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    }
+
+    document.getElementById('export-geojson').addEventListener('click', () => exportData('geojson'));
+    document.getElementById('export-kml').addEventListener('click', () => exportData('kml'));
+    document.getElementById('export-gpx').addEventListener('click', () => exportData('gpx'));
+    document.getElementById('export-wkt').addEventListener('click', () => exportData('wkt'));
+    document.getElementById('export-csv').addEventListener('click', () => exportData('csv'));
+
+    const openCoordFormBtn = document.getElementById('open-coord-form');
+    const coordForm = document.getElementById('coord-form');
+    openCoordFormBtn.addEventListener('click', () => {
+        coordForm.style.display = coordForm.style.display === 'none' ? 'block' : 'none';
+    });
+
+    const addPointBtn = document.getElementById('add-point-btn');
+    addPointBtn.addEventListener('click', () => {
+        const lat = parseFloat(document.getElementById('lat-input').value);
+        const lng = parseFloat(document.getElementById('lng-input').value);
+
+        if (isNaN(lat) || isNaN(lng)) {
+            alert('Введите корректные координаты.');
+            return;
+        }
+
+        const latlng = L.latLng(lat, lng);
+        const marker = L.marker(latlng).addTo(drawnItems);
+        currentLayer = marker;
+
+        marker.feature = {
+            type: 'Feature',
+            properties: {},
+            geometry: marker.toGeoJSON().geometry
+        };
+
+        document.getElementById('object-name').value = '';
+        document.getElementById('object-description').value = '';
+        document.getElementById('object-color').value = '#3498db';
+
+        modal.style.display = "block";
+        modal.setAttribute('aria-hidden', 'false');
+        updateInfoPanel();
+    });
+</script>
+</body>
+<footer>
+	<div>
+    		<p>© Курсовая работа. Зобнин В.В. 3 курс</p>
+	</div>
+</footer>
+</html>
